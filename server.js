@@ -4,10 +4,12 @@ const Koa = require("koa");
 const next = require("next");
 const { default: createShopifyAuth } = require("@shopify/koa-shopify-auth");
 const { verifyRequest } = require("@shopify/koa-shopify-auth");
-const { default: Shopify, ApiVersion } = require("@shopify/shopify-api");
+const { default: Shopify } = require("@shopify/shopify-api");
 const Router = require("koa-router");
 
 dotenv.config();
+const { default: graphQLProxy } = require("@shopify/koa-shopify-graphql-proxy");
+const { ApiVersion } = require("@shopify/koa-shopify-graphql-proxy");
 
 Shopify.Context.initialize({
     API_KEY: process.env.SHOPIFY_API_KEY,
@@ -65,6 +67,9 @@ app.prepare().then(() => {
 
     router.get("(/_next/static/.*)", handleRequest);
     router.get("/_next/webpack-hmr", handleRequest);
+
+    server.use(graphQLProxy({ version: ApiVersion.October20 }));
+
     router.get("(.*)", verifyRequest(), handleRequest);
 
     server.use(router.allowedMethods());
