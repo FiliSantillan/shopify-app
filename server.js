@@ -4,12 +4,10 @@ const Koa = require("koa");
 const next = require("next");
 const { default: createShopifyAuth } = require("@shopify/koa-shopify-auth");
 const { verifyRequest } = require("@shopify/koa-shopify-auth");
-const { default: Shopify } = require("@shopify/shopify-api");
+const { default: Shopify, ApiVersion } = require("@shopify/shopify-api");
 const Router = require("koa-router");
 
 dotenv.config();
-const { default: graphQLProxy } = require("@shopify/koa-shopify-graphql-proxy");
-const { ApiVersion } = require("@shopify/koa-shopify-graphql-proxy");
 
 Shopify.Context.initialize({
     API_KEY: process.env.SHOPIFY_API_KEY,
@@ -26,12 +24,12 @@ const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev: dev });
 const handle = app.getRequestHandler();
 
+const ACTIVE_SHOPIFY_SHOPS = {};
+
 const getHost = (ctx) => {
     const baseUrl = new URL(`https://${ctx.request.header.host}${ctx.request.url}`);
     return baseUrl.searchParams.get("host");
 };
-
-const ACTIVE_SHOPIFY_SHOPS = {};
 
 app.prepare().then(() => {
     const server = new Koa();
@@ -48,6 +46,10 @@ app.prepare().then(() => {
             },
         })
     );
+
+    router.post("/graphql", verifyRequest({ returnHeader: true }), async (ctx, next) => {
+        await Shopify.Utils.graphqlProxy(ctx.req, ctx.res);
+    });
 
     const handleRequest = async (ctx) => {
         await handle(ctx.req, ctx.res);
@@ -67,9 +69,6 @@ app.prepare().then(() => {
 
     router.get("(/_next/static/.*)", handleRequest);
     router.get("/_next/webpack-hmr", handleRequest);
-
-    server.use(graphQLProxy({ version: ApiVersion.October20 }));
-
     router.get("(.*)", verifyRequest(), handleRequest);
 
     server.use(router.allowedMethods());
